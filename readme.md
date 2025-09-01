@@ -1,4 +1,4 @@
-## Lernsituation: Migration "Let’s Meet"!
+## Lernsituation: Migration "Let’s Meet"
 
 ### Ausgangslage:
 
