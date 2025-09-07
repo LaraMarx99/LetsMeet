@@ -1,3 +1,4 @@
+drop table if exists interessiert_an;
 drop table if exists Hobbys;
 drop table if exists Nutzer;
 drop table if exists Geschlecht;
@@ -5,12 +6,12 @@ drop table if exists Geschlecht;
 
 CREATE TABLE Geschlecht(
     ID INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    Geschlechtsindentität VARCHAR(100) UNIQUE
+    Geschlechtsidentität VARCHAR(100) NOT NULL UNIQUE
 );
 
 CREATE TABLE Hobbys(
     ID INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY, 
-    Hobbys VARCHAR(100) UNIQUE
+    Hobbys VARCHAR(100) NOT NULL UNIQUE
 );
 
 CREATE TABLE Nutzer(
@@ -18,11 +19,11 @@ CREATE TABLE Nutzer(
     Nachname VARCHAR(100),
     Vorname VARCHAR(100),
     Geburtsdatum DATE,
-    Telefonnummer INT,
+    Telefonnummer VARCHAR(30),
     EMail VARCHAR(100) UNIQUE,
     Straße VARCHAR(100),
     Hausnummer VARCHAR(100),
-    PLZ INT,
+    PLZ VARCHAR(10),
     Ort VARCHAR(100),
     Geschlecht_id INT REFERENCES Geschlecht(id),
     UpdatedAt TIMESTAMP,
@@ -32,6 +33,8 @@ CREATE TABLE Nutzer(
 CREATE TABLE interessiert_an(
     Nutzer_ID INT REFERENCES Nutzer(id),
     Interesse INT REFERENCES Geschlecht(id)
+    PRIMARY KEY (Nutzer_ID, Interesse)
 );
+
 
 
