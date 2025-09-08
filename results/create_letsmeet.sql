@@ -36,5 +36,7 @@ CREATE TABLE interessiert_an(
     PRIMARY KEY (Nutzer_ID, Interesse)
 );
 
+create
+
 
 
