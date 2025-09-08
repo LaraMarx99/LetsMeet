@@ -32,7 +32,7 @@ CREATE TABLE Nutzer(
 
 CREATE TABLE interessiert_an(
     Nutzer_ID INT REFERENCES Nutzer(id),
-    Interesse INT REFERENCES Geschlecht(id)
+    Interesse INT REFERENCES Geschlecht(id),
     PRIMARY KEY (Nutzer_ID, Interesse)
 );
 
