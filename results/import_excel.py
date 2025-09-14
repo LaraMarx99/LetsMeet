@@ -71,6 +71,12 @@ def normalize_interest(raw_interest: Optional[str]) -> List[str]:
         return []
     return [interest_string]
 
+def normalize_phone_number(phone: Optional[str]) -> Optional[str]:
+    if not isinstance(phone, str) or not phone.strip():
+        return None
+    
+    return re.sub(r'[^\d]', '', phone.strip()) or None
+
 def parse_hobbies(hobby_string: Optional[str]) -> List[Tuple[str,int]]:
     if pd.isna(hobby_string) or not hobby_string:
         return []
@@ -101,6 +107,9 @@ def main():
         df["E-Mail"] = df["E-Mail"].apply(lambda email_value: email_value.lower().strip() if isinstance(email_value, str) else email_value)
     if "Geburtsdatum" in df.columns:
         df["Geburtsdatum"] = pd.to_datetime(df["Geburtsdatum"], format="%d.%m.%Y", errors="coerce").dt.date
+
+    if "Telefon" in df.columns:
+        df["Telefon"] = df["Telefon"].apply(normalize_phone_number)
 
     df["Nachname"], df["Vorname"] = zip(*df.get("Nachname, Vorname", pd.Series([None]*len(df))).map(split_name))
     address_columns = list(zip(*df.get("Straße Nr, PLZ Ort", pd.Series([None]*len(df))).map(split_address)))
