@@ -1,2 +1,1 @@
-SELECT COUNT(*) FROM "nutzer";
-SELECT * FROM "nutzer" LIMIT 5;
+SELECT * FROM nutzer LIMIT 10;
