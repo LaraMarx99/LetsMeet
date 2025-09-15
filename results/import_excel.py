@@ -5,6 +5,8 @@ import pandas as pd
 import psycopg2
 
 
+
+## Aufteilung "Nachname, Vorname" in zwei Spalten
 def split_name(full_name: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
     if not isinstance(full_name, str):
         return None, None
@@ -13,6 +15,7 @@ def split_name(full_name: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
         return name_parts[0] or None, name_parts[1] or None
     return full_name.strip() or None, None
 
+## Aufteilung "Straße Nr, PLZ Ort" in vier Spalten
 def split_address(address: Optional[str]) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
     if not isinstance(address, str):
         return None, None, None, None
@@ -37,10 +40,19 @@ def split_address(address: Optional[str]) -> Tuple[Optional[str], Optional[str],
 
     city_name = city_part if city_part else None
 
-    def normalize_none(value): 
+    def empty_or_space_strings_to_none(value): # Vereinheitlichung von leeren Strings oder nur Leerzeichen zu None
         return value if (value and str(value).strip()) else None
-    return normalize_none(street_name), normalize_none(house_number), normalize_none(postal_code), normalize_none(city_name)
+    
+    return (
+        empty_or_space_strings_to_none(street_name),
+        empty_or_space_strings_to_none(house_number), 
+        empty_or_space_strings_to_none(postal_code),
+        empty_or_space_strings_to_none(city_name)
+    )
 
+## Normalisierung (Ausschreiben der Abkürzungen) von Geschlechtsangaben
+
+# gibt eine normalisierte Geschlechtsangabe zurück oder None, wenn keine Angabe gemacht wurde
 def normalize_gender(raw_gender: Optional[str]) -> Optional[str]:
     if raw_gender is None:
         return None
@@ -55,6 +67,8 @@ def normalize_gender(raw_gender: Optional[str]) -> Optional[str]:
         return None
     return gender_string
 
+# gibt eine Liste von normalisierten Geschlechtsangaben zurück, an denen Interesse besteht
+# hier ist eine Liste sinnvoll, da mehrere Interessen angegeben werden können
 def normalize_interest(raw_interest: Optional[str]) -> List[str]:
     if raw_interest is None:
         return []
@@ -71,11 +85,15 @@ def normalize_interest(raw_interest: Optional[str]) -> List[str]:
         return []
     return [interest_string]
 
+#Telefonnummern normalisieren (nur Ziffern behalten, sonst None)
+
 def normalize_phone_number(phone: Optional[str]) -> Optional[str]:
     if not isinstance(phone, str) or not phone.strip():
         return None
     
     return re.sub(r'[^\d]', '', phone.strip()) or None
+
+# Hobbys von der Präferenz trennen und in eine Liste von Tupeln umwandeln
 
 def parse_hobbies(hobby_string: Optional[str]) -> List[Tuple[str,int]]:
     if pd.isna(hobby_string) or not hobby_string:
@@ -96,6 +114,9 @@ def parse_hobbies(hobby_string: Optional[str]) -> List[Tuple[str,int]]:
             hobbies.append((hobby_name, präferenz))
     return hobbies
 
+
+
+# Hauptfunktion zum Einlesen der Excel-Datei und Importieren der Daten in die PostgreSQL-Datenbank
 def main():
     EXCEL_FILE = "Lets Meet DB Dump.xlsx"
     PG_URL = "postgresql://user:secret@localhost:5432/lf8_lets_meet_db"
@@ -103,8 +124,10 @@ def main():
     df = pd.read_excel(EXCEL_FILE)
     
     df = df.map(lambda cell_value: None if (isinstance(cell_value, str) and cell_value.strip() == "") else cell_value)
+
     if "E-Mail" in df.columns:
         df["E-Mail"] = df["E-Mail"].apply(lambda email_value: email_value.lower().strip() if isinstance(email_value, str) else email_value)
+    
     if "Geburtsdatum" in df.columns:
         df["Geburtsdatum"] = pd.to_datetime(df["Geburtsdatum"], format="%d.%m.%Y", errors="coerce").dt.date
 
@@ -112,15 +135,19 @@ def main():
         df["Telefon"] = df["Telefon"].apply(normalize_phone_number)
 
     df["Nachname"], df["Vorname"] = zip(*df.get("Nachname, Vorname", pd.Series([None]*len(df))).map(split_name))
+
     address_columns = list(zip(*df.get("Straße Nr, PLZ Ort", pd.Series([None]*len(df))).map(split_address)))
+
     if address_columns:
         df["Straße"], df["Hausnummer"], df["PLZ"], df["Ort"] = [list(column) for column in address_columns]
     else:
         df["Straße"] = df["Hausnummer"] = df["PLZ"] = df["Ort"] = None
 
     df["Geschlecht_normalisiert"] = df.get("Geschlecht (m/w/nonbinary)").apply(normalize_gender)
+
     df["Interessiert_an_liste"] = df.get("Interessiert an").apply(normalize_interest)
 
+    # Verbindung zur PostgreSQL-Datenbank herstellen und Daten importieren
     with psycopg2.connect(PG_URL) as connection:
         with connection.cursor() as cursor:
             for row_index, row in df.iterrows():
