@@ -12,7 +12,7 @@ def split_name(full_name: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
 
 
 def main():
-    XML_FILE = "Lets_Meet_Hobbies.xml"
+    XML_FILE = "Lets_Meet_Hobbies.xml" 
     PG_URL = "postgresql://user:secret@localhost:5432/lf8_lets_meet_db"
 
     tree = ET.parse(XML_FILE)
@@ -29,18 +29,28 @@ def main():
                 name = name_element.text.strip() if name_element is not None and name_element.text else None
                 nachname, vorname = split_name(name)
 
+                 # INSERT mit ON CONFLICT DO NOTHING
                 cursor.execute(
                     'INSERT INTO "nutzer" '
                     '("nachname", "vorname", "email") '
                     'VALUES (%s,%s,%s) '
-                    'ON CONFLICT (email) DO NOTHING '
+                    'ON CONFLICT DO NOTHING;',
+                    (nachname, vorname, email)
+                )
+
+                # UPDATE mit Expression für Email-Matching
+                cursor.execute(
+                    'UPDATE "nutzer" SET '
+                    '"nachname" = COALESCE(%s, "nachname"), '
+                    '"vorname" = COALESCE(%s, "vorname") '
+                    'WHERE lower(trim("email")) = lower(trim(%s)) '
                     'RETURNING "id";',
                     (nachname, vorname, email)
                 )
 
                 result = cursor.fetchone()
                 if result is None:
-                    cursor.execute('SELECT "id" FROM "nutzer" WHERE "email" = %s;', (email,))
+                    cursor.execute('SELECT "id" FROM "nutzer" WHERE lower(trim("email")) = lower(trim(%s));', (email,))
                     result = cursor.fetchone()
                 
                 if result:

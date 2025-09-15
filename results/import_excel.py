@@ -15,7 +15,7 @@ def split_name(full_name: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
         return name_parts[0] or None, name_parts[1] or None
     return full_name.strip() or None, None
 
-## Aufteilung "Straße Nr, PLZ Ort" in vier Spalten
+## Aufteilung "strasse Nr, PLZ Ort" in vier Spalten
 def split_address(address: Optional[str]) -> Tuple[Optional[str], Optional[str], Optional[str], Optional[str]]:
     if not isinstance(address, str):
         return None, None, None, None
@@ -93,7 +93,7 @@ def normalize_phone_number(phone: Optional[str]) -> Optional[str]:
     
     return re.sub(r'[^\d]', '', phone.strip()) or None
 
-# Hobbys von der Präferenz trennen und in eine Liste von Tupeln umwandeln
+# Hobbys von der praeferenz trennen und in eine Liste von Tupeln umwandeln
 
 def parse_hobbies(hobby_string: Optional[str]) -> List[Tuple[str,int]]:
     if pd.isna(hobby_string) or not hobby_string:
@@ -110,8 +110,8 @@ def parse_hobbies(hobby_string: Optional[str]) -> List[Tuple[str,int]]:
         match = re.match(r'^(.+?)\s*%(\d+)%$', part.strip())
         if match:
             hobby_name = match.group(1).strip()
-            präferenz = int(match.group(2))
-            hobbies.append((hobby_name, präferenz))
+            praeferenz = int(match.group(2))
+            hobbies.append((hobby_name, praeferenz))
     return hobbies
 
 
@@ -156,12 +156,12 @@ def main():
                 for gender_value in all_genders:
                     if gender_value:
                         cursor.execute(
-                            'INSERT INTO "geschlecht" ("geschlechtsidentität") VALUES (%s) ON CONFLICT (geschlechtsidentität) DO NOTHING;',
+                            'INSERT INTO "geschlecht" ("geschlechtsidentitaet") VALUES (%s) ON CONFLICT (geschlechtsidentitaet) DO NOTHING;',
                             (gender_value,),
                         )
                 
                 if row.get("Geschlecht_normalisiert"):
-                    cursor.execute('SELECT "id" FROM "geschlecht" WHERE "geschlechtsidentität" = %s;', (row.get("Geschlecht_normalisiert"),))
+                    cursor.execute('SELECT "id" FROM "geschlecht" WHERE "geschlechtsidentitaet" = %s;', (row.get("Geschlecht_normalisiert"),))
                     user_gender_result = cursor.fetchone()
                     user_gender_id = user_gender_result[0] if user_gender_result else None
                 else:
@@ -169,35 +169,52 @@ def main():
 
                 cursor.execute(
                     'INSERT INTO "nutzer" '
-                    '("nachname","vorname","geburtsdatum","telefonnummer","email","straße","hausnummer","plz","ort","geschlecht_id") '
+                    '("nachname","vorname","geburtsdatum","telefonnummer","email","strasse","hausnummer","plz","ort","geschlecht_id") '
                     'VALUES (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s) '
-                    'ON CONFLICT (email) DO UPDATE SET '
-                    '"nachname" = COALESCE(EXCLUDED.nachname, nutzer.nachname), '
-                    '"vorname" = COALESCE(EXCLUDED.vorname, nutzer.vorname),'
-                    '"geburtsdatum" = COALESCE(EXCLUDED.geburtsdatum, nutzer.geburtsdatum),'
-                    '"telefonnummer" = COALESCE(EXCLUDED.telefonnummer, nutzer.telefonnummer),'
-                    '"straße" = COALESCE(EXCLUDED.straße, nutzer.straße),'
-                    '"hausnummer" = COALESCE(EXCLUDED.hausnummer, nutzer.hausnummer),'
-                    '"plz" = COALESCE(EXCLUDED.plz, nutzer.plz),'
-                    '"ort" = COALESCE(EXCLUDED.ort, nutzer.ort),'
-                    '"geschlecht_id" = COALESCE(EXCLUDED.geschlecht_id, nutzer.geschlecht_id) '
-                    'RETURNING "id";',
+                    'ON CONFLICT DO NOTHING;',
                     (
                         row.get("Nachname"),
                         row.get("Vorname"),
                         row.get("Geburtsdatum"),
                         row.get("Telefon"),
                         row.get("E-Mail"),
-                        row.get("Straße"),
+                        row.get("Straße"),  # Das bleibt mit Umlaut (DataFrame-Spalte)
                         row.get("Hausnummer"),
                         row.get("PLZ"),
                         row.get("Ort"),
                         user_gender_id,
                     ),
                 )
+
+                cursor.execute(
+                    'UPDATE "nutzer" SET '
+                    '"nachname" = COALESCE(%s, "nachname"), '
+                    '"vorname" = COALESCE(%s, "vorname"), '
+                    '"geburtsdatum" = COALESCE(%s, "geburtsdatum"), '
+                    '"telefonnummer" = COALESCE(%s, "telefonnummer"), '
+                    '"strasse" = COALESCE(%s, "strasse"), '
+                    '"hausnummer" = COALESCE(%s, "hausnummer"), '
+                    '"plz" = COALESCE(%s, "plz"), '
+                    '"ort" = COALESCE(%s, "ort"), '
+                    '"geschlecht_id" = COALESCE(%s, "geschlecht_id") '
+                    'WHERE lower(trim("email")) = lower(trim(%s)) '
+                    'RETURNING "id";',
+                    (
+                        row.get("Nachname"),
+                        row.get("Vorname"),
+                        row.get("Geburtsdatum"),
+                        row.get("Telefon"),
+                        row.get("Straße"),  # Das bleibt mit Umlaut (DataFrame-Spalte)
+                        row.get("Hausnummer"),
+                        row.get("PLZ"),
+                        row.get("Ort"),
+                        user_gender_id,
+                        row.get("E-Mail"),
+                    ),
+                )
                 result = cursor.fetchone()
                 if result is None:
-                    cursor.execute('SELECT "id" FROM "nutzer" WHERE "email" = %s;', (row.get("E-Mail"),))
+                    cursor.execute('SELECT "id" FROM "nutzer" WHERE lower(trim("email")) = lower(trim(%s));', (row.get("E-Mail"),))
                     result = cursor.fetchone()
 
                 if result:
@@ -205,7 +222,7 @@ def main():
 
                 for interest_gender in (row.get("Interessiert_an_liste") or []):
                     if interest_gender:
-                        cursor.execute('SELECT "id" FROM "geschlecht" WHERE "geschlechtsidentität" = %s;', (interest_gender,))
+                        cursor.execute('SELECT "id" FROM "geschlecht" WHERE "geschlechtsidentitaet" = %s;', (interest_gender,))
                         interest_result = cursor.fetchone()
                         if interest_result:
                             interest_gender_id = interest_result[0]
@@ -216,7 +233,7 @@ def main():
 
                 hobbies = parse_hobbies(row.get("Hobby1 %Prio1%; Hobby2 %Prio2%; Hobby3 %Prio3%; Hobby4 %Prio4%; Hobby5 %Prio5%;"))
 
-                for hobby_name, präferenz in hobbies:
+                for hobby_name, praeferenz in hobbies:
                     cursor.execute(
                         'INSERT INTO hobby (hobby_name) VALUES (%s) ON CONFLICT (hobby_name) DO NOTHING;',
                         (hobby_name,)
@@ -231,8 +248,8 @@ def main():
                     )
 
                     cursor.execute(
-                        'INSERT INTO nutzer_hobby_präferenz (nutzer_id, hobby_id, präferenz) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING;',
-                        (nutzer_id, hobby_id, präferenz)
+                        'INSERT INTO nutzer_hobby_praeferenz (nutzer_id, hobby_id, praeferenz) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING;',
+                        (nutzer_id, hobby_id, praeferenz)
                     )
 
 

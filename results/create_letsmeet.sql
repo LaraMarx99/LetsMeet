@@ -100,5 +100,5 @@ CREATE TABLE nutzer_hobby_praeferenz(
     nutzer_id INT REFERENCES nutzer(id) ON DELETE CASCADE,
     hobby_id INT REFERENCES hobby(id) ON DELETE CASCADE,
     PRIMARY KEY (nutzer_id, hobby_id),
-    praferenz INT NOT NULL CHECK (praferenz BETWEEN -100 AND 100)
+    praeferenz INT NOT NULL CHECK (praeferenz BETWEEN -100 AND 100)
 );
