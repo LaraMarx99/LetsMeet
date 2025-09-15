@@ -7,3 +7,6 @@ create table test(
 );
 
 select * from nutzer;
+select * from messages;
+select * from freundschaften;
+select * from likes;

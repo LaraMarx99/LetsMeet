@@ -36,6 +36,9 @@ CREATE TABLE nutzer(
     created_at TIMESTAMP
 );
 
+CREATE UNIQUE INDEX uq_nutzer_email_norm
+  ON nutzer ((lower(trim(email))));
+
 CREATE TABLE interessiert_an(
     nutzer_id INT REFERENCES nutzer(id),
     interesse INT REFERENCES geschlecht(id),
@@ -50,6 +53,10 @@ CREATE TABLE bild(
     nutzer_id INT REFERENCES nutzer(id)
 );
 
+CREATE UNIQUE INDEX uq_single_profile_pic
+  ON bild (nutzer_id)
+  WHERE ist_profilbild IS TRUE;
+  
 CREATE TABLE messages(
     id INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     receiving_nutzer_id INT REFERENCES nutzer(id),
