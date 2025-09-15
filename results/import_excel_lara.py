@@ -1,7 +1,7 @@
 """
 Excel -> Postgres Import (Let's Meet)
 - Ziel: nutzer, geschlecht, interessiert_an, hobby, nutzer_hobby, nutzer_hobby_praeferenz
-- Excel-Spalten lt. Readme:
+- Excel-Spalten:
   1) "Nachname, Vorname" (Beispiel zeigt Nachname zuerst; Code kann beides)
   2) "Straße Nr, PLZ, Ort"
   3) "Telefon" (ggf. mehrere, durch Komma getrennt) -> wir nehmen die erste Nummer
@@ -112,26 +112,85 @@ def parse_hobbies(raw: str | None) -> list[tuple[str, int | None]]:
             out.append((hobby, prio))
     return out
 
+# Komplexere Parsing-Variante für "Interessiert an", die aber für den Datensatz in der Exceltabelle nicht benötigt wird. 
+# Für theorethische Erweiterbarkeit um "nicht binär" etc.
 def parse_interested_in(raw: str | None) -> list[str]:
-    # z. B. "m" oder "m,w" oder "m / w / nicht binär" -> lower + trim
-    raw = norm_str(raw) or ""
-    # trenne an Komma oder Slash
-    parts = re.split(r"[,/]", raw)
-    return [p.strip().lower() for p in parts if p.strip()]
+    """
+    Erwartete Excel-Werte:
+      - 'm'  -> männlich
+      - 'w'  -> weiblich
+      - 'm,w' (oder 'w,m') -> männlich + weiblich
+      - 'mw'  (ohne Trennzeichen) -> männlich + weiblich
+    Erweiterbar um 'nb'/'nicht binär', falls später nötig.
+    Gibt kanonische Labels zurück: 'm', 'w', 'nicht binär'
+    """
+    if not raw:
+        return []
+
+    s = str(raw).strip().lower()
+
+    # Sonderfall: 'mw' / 'wm' ohne Separator
+    if s in {"mw", "wm"}:
+        return ["m", "w"]
+
+    # sonst an üblichen Separatoren trennen
+    parts = re.split(r"[,/;|&\s]+", s)
+    out = []
+    for p in parts:
+        if not p:
+            continue
+        if p in {"m", "männl", "männlich"}:
+            out.append("m")
+        elif p in {"w", "weibl", "weiblich"}:
+            out.append("w")
+        elif p in {"nb", "nichtbinär", "nicht-binär", "nicht binär", "divers", "nonbinary", "non-binary"}:
+            out.append("nicht binär")
+        else:
+            # falls mal 'männlich,weiblich' ausgeschrieben in einer Zelle steht:
+            if "männlich" in p:
+                out.append("m")
+            if "weiblich" in p:
+                out.append("w")
+            if "nicht" in p and "binär" in p:
+                out.append("nicht binär")
+
+    # Duplikate entfernen, Reihenfolge behalten
+    seen, uniq = set(), []
+    for x in out:
+        if x not in seen:
+            seen.add(x)
+            uniq.append(x)
+    return uniq
+
+def parse_interested_in_simple(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    s = str(raw).strip().lower()
+    if s in {"mw", "wm"}:
+        return ["m", "w"]
+    if s == "m":
+        return ["m"]
+    if s == "w":
+        return ["w"]
+    if s == "m,w" or s == "w,m":
+        return ["m", "w"]
+    return []  # alles andere ignorieren
 
 def upsert_geschlecht(conn, label: str) -> int:
-    # label: "m" | "w" | "nicht binär" (alles lower)
+    # label ∈ {'m', 'w', 'nb'}  (klein)
+    # in Tabelle als Klartext speichern:
+    mapping = {"m": "männlich", "w": "weiblich", "nb": "nicht binär"}
+    val = mapping.get(label, label)  # falls schon Klartext, unverändert
     sql_ins = """
         INSERT INTO geschlecht (geschlechtsidentitaet)
         VALUES (%s)
         ON CONFLICT (geschlechtsidentitaet) DO NOTHING
     """
     with conn.cursor() as cur:
-        cur.execute(sql_ins, (label,))
-        # hole id
-        cur.execute("SELECT id FROM geschlecht WHERE geschlechtsidentitaet=%s", (label,))
+        cur.execute(sql_ins, (val,))
+        cur.execute("SELECT id FROM geschlecht WHERE geschlechtsidentitaet=%s", (val,))
         return cur.fetchone()["id"]
-
+    
 def upsert_hobby(conn, hobby_name: str) -> int:
     sql_ins = """
         INSERT INTO hobby (hobby_name)
@@ -247,10 +306,16 @@ def main():
                     geschlecht_label=gender_label
                 )
 
-                # Interessiert_an (m/w/nicht binär, mehrere möglich)
-                for gi in parse_interested_in(raw_intan):
-                    gi_id = upsert_geschlecht(conn, gi)
+                # --- interessiert_an pro Nutzer neu aufbauen ---
+                labels = parse_interested_in_simple(raw_intan)  # z. B. ['m', 'w'] für "mw" oder "m,w"
+
+                with conn.cursor() as cur:
+                    cur.execute("DELETE FROM interessiert_an WHERE nutzer_id = %s", (nutzer_id,))
+
+                for lab in labels:
+                    gi_id = upsert_geschlecht(conn, lab)
                     insert_interessiert_an(conn, nutzer_id, gi_id)
+
 
                 # Hobbys + Präferenzen
                 for hobby_name, prio in parse_hobbies(raw_hobby):

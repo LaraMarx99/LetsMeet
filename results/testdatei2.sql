@@ -69,3 +69,34 @@ GROUP BY n.id, n.email
 HAVING COUNT(DISTINCT ia.interesse) >= 2
 ORDER BY interessen_anzahl DESC, n.email;
 
+WITH multi AS (
+  SELECT ia.nutzer_id
+  FROM interessiert_an ia
+  GROUP BY ia.nutzer_id
+  HAVING COUNT(DISTINCT ia.interesse) >= 2
+),
+dups AS (
+  SELECT ia.nutzer_id, ia.interesse, COUNT(*) c
+  FROM interessiert_an ia
+  GROUP BY ia.nutzer_id, ia.interesse
+  HAVING COUNT(*) > 1
+),
+zero AS (
+  SELECT n.id AS nutzer_id
+  FROM nutzer n
+  LEFT JOIN interessiert_an ia ON ia.nutzer_id = n.id
+  WHERE ia.nutzer_id IS NULL
+)
+SELECT
+  CASE WHEN EXISTS (SELECT 1 FROM multi)
+       THEN 'OK: Mehrfach-Interessen vorhanden'
+       ELSE 'WARN: Keine Person mit mehreren Interessen gefunden'
+  END AS multi_interessen_ok,
+  CASE WHEN NOT EXISTS (SELECT 1 FROM dups)
+       THEN 'OK'
+       ELSE 'FEHLER: Duplikate in interessiert_an (gleiche Person/Geschlecht mehrfach)'
+  END AS keine_duplikate_ok,
+  CASE WHEN NOT EXISTS (SELECT 1 FROM zero)
+       THEN 'OK'
+       ELSE 'WARN: Es gibt Nutzer ohne Eintrag in interessiert_an'
+  END AS abdeckung_ok;
