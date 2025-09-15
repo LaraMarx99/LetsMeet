@@ -211,14 +211,6 @@ def insert_interessiert_an(conn, nutzer_id: int, geschlecht_id: int):
     with conn.cursor() as cur:
         cur.execute(sql, (nutzer_id, geschlecht_id))
 
-def insert_nutzer_hobby(conn, nutzer_id: int, hobby_id: int):
-    sql = """
-        INSERT INTO nutzer_hobby (nutzer_id, hobby_id)
-        VALUES (%s, %s)
-        ON CONFLICT DO NOTHING
-    """
-    with conn.cursor() as cur:
-        cur.execute(sql, (nutzer_id, hobby_id))
 
 def insert_nutzer_hobby_praeferenz(conn, nutzer_id: int, hobby_id: int, prio: int | None):
     # praeferenz in [-100, 100]; Excel liefert 0..100 -> wir übernehmen 0..100
@@ -316,12 +308,10 @@ def main():
                     gi_id = upsert_geschlecht(conn, lab)
                     insert_interessiert_an(conn, nutzer_id, gi_id)
 
-
                 # Hobbys + Präferenzen
                 for hobby_name, prio in parse_hobbies(raw_hobby):
                     h_id = upsert_hobby(conn, hobby_name)
-                    insert_nutzer_hobby(conn, nutzer_id, h_id)
-                    # Excel liefert nur positive Präferenzen (0..100) -> direkt in nutzer_hobby_praeferenz schreiben
+                    # Excel liefert nur positive Präferenzen (0..100) -> in nutzer_hobby_praeferenz aber auch negativ möglich
                     insert_nutzer_hobby_praeferenz(conn, nutzer_id, h_id, prio)
 
             conn.execute("COMMIT")
