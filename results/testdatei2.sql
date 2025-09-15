@@ -55,3 +55,17 @@ FROM interessiert_an ia
 JOIN nutzer n ON ia.nutzer_id = n.id
 JOIN geschlecht g ON ia.interesse = g.id
 ORDER BY n.email;
+
+-- Nutzer, die an mehr als einem Geschlecht interessiert sind
+SELECT
+  n.id,
+  n.email,
+  COUNT(DISTINCT ia.interesse) AS interessen_anzahl,
+  STRING_AGG(DISTINCT g.geschlechtsidentitaet, ', ' ORDER BY g.geschlechtsidentitaet) AS interessen_liste
+FROM interessiert_an ia
+JOIN nutzer n    ON n.id = ia.nutzer_id
+JOIN geschlecht g ON g.id = ia.interesse
+GROUP BY n.id, n.email
+HAVING COUNT(DISTINCT ia.interesse) >= 2
+ORDER BY interessen_anzahl DESC, n.email;
+
