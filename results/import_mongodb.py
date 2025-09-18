@@ -21,8 +21,6 @@ MONGO_URI = "mongodb://localhost:27017"
 MONGO_DB = "LetsMeet"
 MONGO_COL = "users"
 
-# Testmodus -> nichts schreiben, nur zählen
-DRY_RUN = True
 
 
 # -----------------------------
@@ -65,12 +63,8 @@ def import_likes(conn, users_coll, email2id, stats):
                 continue
 
             params = (liker_id, liked_id, like.get("status"), to_ts(like.get("timestamp")))
-            if DRY_RUN:
-                stats["likes_inserted"] += 1
-            else:
-                with conn.cursor() as cur:
-                    cur.execute(sql, params)
-                    stats["likes_inserted"] += cur.rowcount
+            conn.execute(sql, params)
+            stats["likes_inserted"] += 1
 
 
 # -----------------------------
@@ -80,7 +74,7 @@ def import_messages(conn, users_coll, email2id, stats):
     sql = """
         INSERT INTO messages (receiving_nutzer_id, sending_nutzer_id, content, zeitstempel, conversation_id)
         VALUES (%s, %s, %s, %s, %s)
-        ON CONFLICT ON CONSTRAINT uq_messages_source DO NOTHING
+        ON CONFLICT DO NOTHING
     """
     for u in users_coll.find({}, {"_id": 1, "messages": 1}):
         sender_id = email2id.get(norm_email(u["_id"]))
@@ -96,12 +90,8 @@ def import_messages(conn, users_coll, email2id, stats):
                 continue
 
             params = (recv_id, sender_id, m.get("message"), to_ts(m.get("timestamp")), m.get("conversation_id"))
-            if DRY_RUN:
-                stats["messages_inserted"] += 1
-            else:
-                with conn.cursor() as cur:
-                    cur.execute(sql, params)
-                    stats["messages_inserted"] += cur.rowcount
+            conn.execute(sql, params)
+            stats["messages_inserted"] += 1
 
 
 # -----------------------------
@@ -115,20 +105,16 @@ def main():
              "likes_skipped": [], "messages_skipped": []}
 
     with psycopg.connect(PG_DSN, row_factory=dict_row) as conn:
-        if not DRY_RUN:
-            conn.execute("BEGIN")
 
         try:
             email2id = load_email_map(conn)
             import_likes(conn, users_coll, email2id, stats)
             import_messages(conn, users_coll, email2id, stats)
-
-            if not DRY_RUN:
-                conn.execute("COMMIT")
+            conn.execute("COMMIT")
         except:
-            if not DRY_RUN:
-                conn.execute("ROLLBACK")
+            conn.execute("ROLLBACK")
             raise
+
 
     # Ergebnisübersicht
     print("Likes eingefügt:", stats["likes_inserted"])
