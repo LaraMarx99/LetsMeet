@@ -109,12 +109,13 @@ def parse_hobbies(hobby_string: Optional[str]) -> List[Tuple[str,int]]:
     for part in hobby_parts:
         match = re.match(r'^(.+?)\s*%(\d+)%$', part.strip())
         if match:
-            hobby_name = match.group(1).strip()
+            hobby_name = normalize_hobby_name(match.group(1))
             praeferenz = int(match.group(2))
             hobbies.append((hobby_name, praeferenz))
     return hobbies
 
-
+def normalize_hobby_name(hobby_name: str) -> str:
+    return hobby_name.strip()
 
 # Hauptfunktion zum Einlesen der Excel-Datei und Importieren der Daten in die PostgreSQL-Datenbank
 def main():
@@ -241,11 +242,6 @@ def main():
 
                     cursor.execute('SELECT id FROM hobby WHERE hobby_name = %s;', (hobby_name,))
                     hobby_id = cursor.fetchone()[0]
-
-                    cursor.execute(
-                        'INSERT INTO nutzer_hobby(nutzer_id, hobby_id) VALUES (%s,%s) ON CONFLICT DO NOTHING;',
-                        (nutzer_id, hobby_id)
-                    )
 
                     cursor.execute(
                         'INSERT INTO nutzer_hobby_praeferenz (nutzer_id, hobby_id, praeferenz) VALUES (%s,%s,%s) ON CONFLICT DO NOTHING;',

@@ -10,6 +10,8 @@ def split_name(full_name: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
         return name_parts[0] or None, name_parts[1] or None
     return full_name.strip() or None, None
 
+def normalize_hobby_name(hobby_name: str) -> str:
+    return hobby_name.strip()
 
 def main():
     XML_FILE = "Lets_Meet_Hobbies.xml" 
@@ -55,12 +57,18 @@ def main():
                 
                 if result:
                     nutzer_id = result[0]
-                
+
                     if hobbies_element is not None:
-                        for hobby_element in hobbies_element.findall('hobby'):
+                        hobby_elements = hobbies_element.findall('hobby')
+                        max_hobbies = 5
+                        
+                        for hobby_index, hobby_element in enumerate(hobby_elements):
+                            if hobby_index >= max_hobbies:
+                                break
+                                
                             hobby_name = hobby_element.text
                             if hobby_name:
-                                hobby_name = hobby_name.strip()
+                                hobby_name = normalize_hobby_name(hobby_name)
 
                                 cursor.execute(
                                     'INSERT INTO hobby (hobby_name) VALUES (%s) ON CONFLICT (hobby_name) DO NOTHING;',
